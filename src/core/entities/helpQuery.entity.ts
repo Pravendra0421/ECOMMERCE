@@ -1,5 +1,5 @@
 export interface HelpQueryEntity {
-  id: number;
+  id: string;
   query: string;
   userEmail?: string | null;
   createdAt: Date;

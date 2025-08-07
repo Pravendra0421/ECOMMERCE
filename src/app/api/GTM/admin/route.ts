@@ -23,9 +23,9 @@ export async function POST(req: NextRequest) {
       isMetaPixelEnabled,
       isGoogleAnalyticsEnabled,
     } = body;
-
+    const settingsId = "1"; 
     const updatedSettings = await prisma.settings.upsert({
-      where: { id: 1 },
+      where: { id: settingsId},
       update: {
         metaPixelId: metaPixelId || null,
         metaCapiToken: metaCapiToken || null,
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         isGoogleAnalyticsEnabled: Boolean(isGoogleAnalyticsEnabled),
       },
       create: {
-        id: 1,
+        id:settingsId,
         metaPixelId: metaPixelId || null,
         metaCapiToken: metaCapiToken || null,
         googleTagManagerId: googleTagManagerId || null,
