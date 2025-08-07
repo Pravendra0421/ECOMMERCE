@@ -1,0 +1,238 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+model User {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  firstName    String?
+  lastName     String?
+  email        String    @unique
+  password     String?
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  orders       Order[]
+  isAdmin      Boolean   @default(false)
+  otp          String?
+  otpExpiresAt DateTime?
+  carts        Cart[]
+  // wishlistItems wishlists[]
+}
+
+model HomePage {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  sections       Json //Prisma to store the sections field as a JSON document in your database
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  seoTitle       String?
+  seoDescription String?
+}
+
+model Header {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sections  Json //Prisma to store the sections field as a JSON document in your database
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Footer {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sections  Json    //Prisma to store the sections field as a JSON document in your database
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  description    String             //removed  @db.Text
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  variations     ProductVariation[]
+  categories     Category[]         @relation("ProductToCategory", fields: [categoryIds], references: [id])
+  thumbnailVideo String             @default("")
+  galleryImages  GalleryImage[]
+  cartItems      CartItem[]
+  seoTitle       String?
+  seoDescription String?
+  // wishlistItems  wishlists[]
+  categoryIds String[] @db.ObjectId
+}
+
+model ProductVariation {
+  id         String         @id @default(auto()) @map("_id") @db.ObjectId
+  productId  String         @db.ObjectId
+  product    Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size       String
+  color      String
+  price      Float
+  salePrice  Float          @default(0.0)
+  stock      Int
+  images     ProductImage[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  cartItems  CartItem[]
+  orderItems OrderItem[]    @relation("ProductVariationToOrderItem")
+
+  @@unique([productId, size, color])
+}
+
+model ProductImage {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  url                String
+  productVariationId String
+  productVariation   ProductVariation @relation(fields: [productVariationId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+}
+
+model GalleryImage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  url       String
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  name           String     @unique
+  products       Product[]  @relation("ProductToCategory", fields: [productIds], references: [id])
+  createdAt      DateTime   @default(now())
+  imageUrl       String?
+  seoTitle       String?
+  seoDescription String?
+
+  productIds String[] @db.ObjectId
+}
+
+model Order {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String      @db.ObjectId
+  user            User        @relation(fields: [userId], references: [id])
+  total           Float
+  status          String // e.g., "PENDING", "SHIPPED", "DELIVERED"
+  paymentMethod   String
+  shippingAddress Json
+  contactInfo     Json
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  orderItems      OrderItem[]
+  couponId        String?     @db.ObjectId
+  coupon          Coupon?     @relation(fields: [couponId], references: [id])
+}
+
+model OrderItem {
+  id                 String           @id @default(auto()) @map("_id") @db.ObjectId
+  orderId            String           @db.ObjectId
+  order              Order            @relation(fields: [orderId], references: [id])
+  productVariationId String
+  productVariation   ProductVariation @relation("ProductVariationToOrderItem", fields: [productVariationId], references: [id])
+  quantity           Int
+  price              Float
+  createdAt          DateTime         @default(now())
+
+  @@unique([orderId, productVariationId]) // Unique constraint: one variation per order
+}
+
+model Coupon {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  code      String   @unique
+  discount  Float // Can be a percentage or a fixed amount
+  type      String // "PERCENTAGE" or "FIXED"
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+model Cart {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String?    @db.ObjectId
+  user         User?      @relation(fields: [userId], references: [id])
+  guestId      String?    @db.ObjectId
+  status       String     @default("active") // e.g., "active", "abandoned", "converted_to_order"
+  items        CartItem[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  lastActivity DateTime   @default(now()) @updatedAt // Updates on any cart or cart item change
+  totalAmount  Float      @default(0)
+  totalItems   Int        @default(0)
+}
+
+model CartItem {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  cartId String   @db.ObjectId
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productVariationId String
+  productVariation   ProductVariation @relation(fields: [productVariationId], references: [id])
+  productId          String           @db.ObjectId
+  product            Product          @relation(fields: [productId], references: [id])
+  quantity           Int              @default(1)
+  price              Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Composite unique constraint to ensure a specific product variation appears only once per cart
+  @@unique([cartId, productVariationId])
+}
+
+model AboutUs {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  content        String
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ContactUs {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  content        String
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model HelpQuery {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  query     String
+  userEmail String?
+  createdAt DateTime @default(now())
+}
+
+// model wishlists {
+//   id           String    @id @default(auto()) @map("_id") @db.ObjectId
+//   userId    String? // Nullable for guest wishlists
+//   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   productId String 
+//   product   Product  @relation(fields: [productId], references: [id]) 
+//   guestId   String? // For unauthenticated users (e.g., stored in local storage)
+//   createdAt DateTime @default(now())
+
+//   @@unique([userId, productId])
+//   @@index([guestId])
+//   @@map("wishlists") // Table name in the database
+// }
+
+model Settings {
+  id                       String    @id @default(auto()) @map("_id") @db.ObjectId
+  metaPixelId              String?
+  metaCapiToken            String?
+  googleTagManagerId       String?
+  isMetaPixelEnabled       Boolean  @default(false)
+  isGoogleAnalyticsEnabled Boolean  @default(false)
+  lastUpdated              DateTime @updatedAt
+}
