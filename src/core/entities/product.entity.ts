@@ -25,7 +25,6 @@ export interface ProductVariationEntity {
   updatedAt?: Date; 
   images: ProductImageEntity[];
 }
-
 export interface ProductEntity {
   id: string;
   name: string;

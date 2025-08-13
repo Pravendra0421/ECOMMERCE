@@ -14,6 +14,7 @@ import MobileMenu from "./MobileSideBar";
 import CartSidebar from "../cart/CartSidebar";
 import { HeaderSection } from "@/core/entities/Header.entity";
 import { useAuthStore } from "@/store/authStore";
+import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,13 +31,22 @@ const iconMap: Record<string, React.ReactNode> = {
   facebook: <RiFacebookCircleFill />,
   pinterest: <FaPinterest />,
 };
+
 const Header = ({ header }: HeaderProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchInputVisible, setIsSearchInputVisible] = useState(false); // State to control search input visibility on mobile
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const router = useRouter();
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
+  const handleSearch = (searchTerm: string) => {
+    // Agar searchTerm empty nahi hai, to search page par redirect karein
+    if (searchTerm.trim() !== "") {
+      router.push(`/search?query=${searchTerm}`);
+    }
+  };
+
   const { isAuthenticated, logout, user } = useAuthStore();
   const toggleSearchInput = () => {
     setIsSearchInputVisible(!isSearchInputVisible);
@@ -92,7 +102,7 @@ const Header = ({ header }: HeaderProps) => {
           </button>
         </div>
         <div className="hidden md:block ml-[12%]">
-          <SearchInput />
+          <SearchInput searchProduct={handleSearch} />
         </div>
 
         {/* Desktop Navigation Links */}
@@ -189,7 +199,7 @@ const Header = ({ header }: HeaderProps) => {
         {/* Mobile Search Input (appears conditionally below the header) */}
         {isSearchInputVisible && (
           <div className="absolute top-full left-0 right-0 p-4 bg-white border-b border-gray-100 z-30 md:hidden">
-            <SearchInput />
+            <SearchInput  searchProduct={handleSearch}/>
           </div>
         )}
       </div>
