@@ -18,7 +18,6 @@ import {
   UpdateOrderDto,
   BuyNowDto,
 } from "@/core/dtos/Order.dto";
-import { ProductApiRepository } from "@/infrastructure/frontend/repositories/ProductRepository.api";
 import { getCurrentUser } from "@/lib/auth";
 import { Suspense } from "react";
 
@@ -40,6 +39,7 @@ function CheckoutPageContent() {
   const [loading, setLoading] = useState(true); // Page data loading state
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true); // Added to track auth loading status
   const [shippingAddress, setShippingAddress] = useState<AddressEntity>({
     firstName: "",
@@ -59,7 +59,17 @@ function CheckoutPageContent() {
     useState<PaymentMethodType>("COD");
   const orderApi = useMemo(() => new OrderApiRepository(), []);
   const cartApi = useMemo(() => new CartApiRepository(), []);
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    document.body.appendChild(script);
 
+    return () => {
+      // Component ke band hone par script ko memory se saaf kar dein
+      document.body.removeChild(script);
+    };
+  }, []);
   useEffect(() => {
     const fetchUser = async () => {
       setIsAuthLoading(true); // Auth loading start
@@ -234,14 +244,14 @@ function CheckoutPageContent() {
   );
   const shippingCost = 0;
   const totalPayable = totalPrice + shippingCost;
-  const handlePlaceholder = async () => {
+  const handlePlaceOrder = async () => {
     setError(null);
+
+    // === Validation (Ise jaisa hai waisa hi rehne dein) ===
     if (!currentUser) {
-      setError("Please log in to place an order.");
       router.push("/login/request-otp");
       return;
     }
-    // 1. Client-side Validation (Required fields check)
     if (
       !contactInfo.email ||
       !contactInfo.phone ||
@@ -253,94 +263,155 @@ function CheckoutPageContent() {
       !shippingAddress.country
     ) {
       setError(
-        "Please fill in all required contact and shipping information fields (marked with *)."
+        "Please fill in all required contact and shipping information fields."
       );
       return;
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(contactInfo.email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
+    // === Validation End ===
 
-    // Phone number length validation (basic)
-    if (contactInfo.phone.length < 10) {
-      setError("Please enter a valid phone number (at least 10 digits).");
-      return;
-    }
-    if (itemsToDisplay.length === 0) {
-      setError(
-        "No items to checkout. Please add items to your cart or use Buy Now."
-      );
-      return;
-    }
-    try {
-      let finalOrderId: string;
-      if (orderData) {
-        const updatePayload: UpdateOrderDto = {
-          shippingAddress: shippingAddress,
-          contactInfo: contactInfo,
-          paymentMethod: selectedPaymentMethod,
-          status: "pending",
-        };
-        const updatedOrder = await orderApi.updateOrder(
-          orderData.id,
-          updatePayload
-        );
-        if (!updatedOrder) throw new Error("failed to update order");
-        finalOrderId = updatedOrder.id;
-      } else if (cartData) {
-        const orderItemsWithProductId = cartData.items.map((item) => ({
-          productId: item.productId, // Ensure this is available in cartData.items
-          productVariationId: item.productVariationId,
-          quantity: item.quantity,
-          price: item.price,
-        }));
+    setProcessing(true); // Button ko disable karne ke liye processing shuru
 
-        // This is the object that will be passed as the second argument to createOrder
-        const orderDetailsForApi: Omit<CreateOrderDto, "cartId"> = {
-          userId: currentUser.id,
-          shippingAddress: shippingAddress,
-          contactInfo: contactInfo,
-          paymentMethod: selectedPaymentMethod,
-          items: orderItemsWithProductId, // Include the mapped items here
-        };
-        const newOrder = await orderApi.createOrder(
-          cartData,
-          orderDetailsForApi
-        );
-        if (!newOrder) throw new Error("Failed to create order from cart.");
-        finalOrderId = newOrder.id;
+    // ==========================================================
+    // === PAYMENT METHOD KE HISAB SE LOGIC ===
+    // ==========================================================
 
-        // await cartApi.clearCart(orderData,false);
-      } else if (
-        flowType === "buy-now" &&
-        productVariationId &&
-        quantity &&
-        buyNowPrice > 0
-      ) {
-        const orderDetailsForApi = {
-          paymentMethod: selectedPaymentMethod,
-          shippingAddress: shippingAddress,
-          contactInfo: contactInfo,
-        };
-        const newOrder = await orderApi.createOrderFromProduct(
-          productVariationId,
-          currentUser.id,
-          quantity,
-          buyNowPrice,
-          orderDetailsForApi
-        );
-        if (!newOrder) throw new Error('Failed to create "Buy Now" order.');
-        finalOrderId = newOrder.id;
-      } else {
-        setError(
-          "Could not determine checkout source. Please refresh or try again."
-        );
-        return;
+    // ---> AGAR PAYMENT METHOD 'COD' HAI
+    if (selectedPaymentMethod === "COD") {
+      try {
+        let finalOrderId: string;
+        if (cartData) {
+          const orderPayload: CreateOrderDto = {
+            userId: currentUser.id,
+            shippingAddress: shippingAddress,
+            contactInfo: contactInfo,
+            paymentMethod: "COD",
+            items: cartData.items.map((item) => ({
+              productId: item.productId,
+              productVariationId: item.productVariationId,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+          };
+          const newOrder = await orderApi.createOrder(cartData, orderPayload);
+          finalOrderId = newOrder.id;
+        } else if (flowType === "buy-now") {
+          const buyNowPayload: BuyNowDto = {
+            userId: currentUser.id,
+            productVariationId: productVariationId!,
+            quantity: quantity,
+            price: buyNowPrice,
+            shippingAddress: shippingAddress,
+            contactInfo: contactInfo,
+            paymentMethod: "COD",
+          };
+          const newOrder = await orderApi.createOrderFromProduct(buyNowPayload);
+          finalOrderId = newOrder.id;
+        } else {
+          throw new Error("Cannot determine order source.");
+        }
+        router.push(`/order-confirmation?orderId=${finalOrderId}`);
+      } catch (err: any) {
+        setError(err.message || "Failed to place order.");
+        setProcessing(false);
       }
-      router.push(`/order-confirmation?orderId=${finalOrderId}`);
-    } catch (error) {}
+      return; // COD ka process yahan khatam.
+    }
+
+    // ---> AGAR PAYMENT METHOD 'UPI' HAI
+    if (selectedPaymentMethod === "UPI") {
+      try {
+        // 1. Backend se Razorpay ka Order ID banwayein
+        const { order: razorpayOrder } = await orderApi.createRazorpayOrder(
+          totalPayable
+        );
+        if (!razorpayOrder) throw new Error("Could not initialize payment.");
+
+        // 2. Razorpay ka Payment Popup Kholein
+        const options = {
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          amount: razorpayOrder.amount,
+          currency: "INR",
+          name: "Your Store Name", // Aapke store ka naam
+          description: "Order Payment",
+          order_id: razorpayOrder.id,
+
+          // 3. Payment ke baad yeh function chalega
+          handler: async function (response: any) {
+            try {
+              let finalOrderId: string;
+              // Cart se order
+              if (cartData) {
+                const orderPayload: CreateOrderDto = {
+                  userId: currentUser.id,
+                  shippingAddress: shippingAddress,
+                  contactInfo: contactInfo,
+                  paymentMethod: "UPI",
+                  items: cartData.items.map((item) => ({
+                    productId: item.productId,
+                    productVariationId: item.productVariationId,
+                    quantity: item.quantity,
+                    price: item.price,
+                  })),
+                  // Razorpay ki details verification ke liye
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                };
+                const newOrder = await orderApi.createOrder(
+                  cartData,
+                  orderPayload
+                );
+                finalOrderId = newOrder.id;
+              }
+              // Buy Now se order
+              else if (flowType === "buy-now") {
+                const buyNowPayload: BuyNowDto = {
+                  userId: currentUser.id,
+                  productVariationId: productVariationId!,
+                  quantity: quantity,
+                  price: buyNowPrice,
+                  shippingAddress: shippingAddress,
+                  contactInfo: contactInfo,
+                  paymentMethod: "UPI",
+                  // Razorpay ki details verification ke liye
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                };
+                const newOrder = await orderApi.createOrderFromProduct(
+                  buyNowPayload
+                );
+                finalOrderId = newOrder.id;
+              } else {
+                throw new Error("Cannot determine order source.");
+              }
+              router.push(`/order-confirmation?orderId=${finalOrderId}`);
+            } catch (err: any) {
+              setError(err.message || "Order creation failed after payment.");
+              setProcessing(false);
+            }
+          },
+          prefill: {
+            name: `${shippingAddress.firstName} ${shippingAddress.lastName}`,
+            email: contactInfo.email,
+            contact: contactInfo.phone,
+          },
+          modal: {
+            ondismiss: function () {
+              // Agar user popup band kar de
+              setError("Payment was cancelled.");
+              setProcessing(false);
+            },
+          },
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+      } catch (err: any) {
+        setError(err.message || "Payment failed. Please try again.");
+        setProcessing(false);
+      }
+    }
   };
   if (isAuthLoading || loading) {
     return (
@@ -603,7 +674,7 @@ function CheckoutPageContent() {
           </div>
         )}
         <Button
-          onClick={handlePlaceholder}
+          onClick={handlePlaceOrder}
           className="w-full bg-gray-900 text-white py-4 px-6 rounded-md font-semibold text-lg hover:bg-gray-700 transition-colors duration-300 shadow-md"
         >
           Place Order

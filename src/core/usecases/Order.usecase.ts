@@ -6,6 +6,7 @@ import { IUserRepository } from "../repositories/IUserRepository";
 import { IProductRepository } from "../repositories/IProductRepository";
 import { ProductVariationEntity } from "../entities/product.entity";
 import { BuyNowDto } from "../dtos/Order.dto";
+import crypto from "crypto";
 export class OrderUseCase {
   constructor(
     private orderRepository: IOrderRepository,
@@ -47,11 +48,25 @@ export class OrderUseCase {
         );
       }
     }
-    const paymentSuccessful = await this.processPayment(cart.totalAmount, {
-      method: payload.paymentMethod,
-    });
-    if (!paymentSuccessful) {
-      throw new Error("Payment failed. Please try again.");
+    if (payload.paymentMethod === "UPI") {
+      if (
+        !payload.razorpay_order_id ||
+        !payload.razorpay_payment_id ||
+        !payload.razorpay_signature
+      ) {
+        throw new Error("payemt detail are missing for upi");
+      }
+
+      const body =
+        payload.razorpay_order_id + "|" + payload.razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(body.toString())
+        .digest("hex");
+
+      if (expectedSignature !== payload.razorpay_signature) {
+        throw new Error("Payment verification failed. Invalid signature.");
+      }
     }
     for (const cartItem of cart.items) {
       const product = await this.productRepository.findById(cartItem.productId);
@@ -177,11 +192,25 @@ export class OrderUseCase {
         : productVariation.price;
     const totalAmount = itemPrice * payload.quantity;
 
-    const paymentSuccessful = await this.processPayment(totalAmount, {
-      method: payload.paymentMethod,
-    });
-    if (!paymentSuccessful) {
-      throw new Error("Payment failed. Please try again.");
+    if (payload.paymentMethod === "UPI") {
+      if (
+        !payload.razorpay_order_id ||
+        !payload.razorpay_payment_id ||
+        !payload.razorpay_signature
+      ) {
+        throw new Error("Payment details are missing for UPI.");
+      }
+
+      const body =
+        payload.razorpay_order_id + "|" + payload.razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(body.toString())
+        .digest("hex");
+
+      if (expectedSignature !== payload.razorpay_signature) {
+        throw new Error("Payment verification failed. Invalid signature.");
+      }
     }
 
     // 3. Update Stock
@@ -192,38 +221,8 @@ export class OrderUseCase {
     );
 
     // 4. Create Order
-    const newOrder = await this.orderRepository.createOrderFromProduct(
-      userId,
-      payload.productVariationId,
-      payload.quantity,
-      itemPrice, // Pass the actual price for the order item
-      {
-        paymentMethod: payload.paymentMethod,
-        shippingAddress: payload.shippingAddress,
-        contactInfo: payload.contactInfo,
-      }
-    );
+    const newOrder = await this.orderRepository.createOrderFromProduct(payload);
 
     return newOrder;
-  }
-  private async processPayment(
-    amount: number,
-    paymentDetails: any
-  ): Promise<boolean> {
-    console.log(
-      `Processing payment of ${amount} with details:`,
-      paymentDetails
-    );
-    return new Promise((resolve) =>
-      setTimeout(() => {
-        if (amount > 0 && paymentDetails && paymentDetails.method) {
-          console.log("Payment successful!");
-          resolve(true);
-        } else {
-          console.error("Payment failed: Invalid amount or details.");
-          resolve(false);
-        }
-      }, 1500)
-    );
   }
 }

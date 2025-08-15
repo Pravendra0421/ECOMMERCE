@@ -32,6 +32,9 @@ export interface CreateOrderDto {
     };
     paymentMethod: PaymentMethodType;
     items: CreateOrderItemDto[];
+    razorpay_payment_id?: string;
+    razorpay_order_id?: string;
+    razorpay_signature?: string;
 }
 export interface BuyNowDto {
     productVariationId: string;
@@ -52,5 +55,8 @@ export interface BuyNowDto {
     };
     paymentMethod: PaymentMethodType;
     userId: string; 
-    price: number;  
+    price: number; 
+    razorpay_payment_id?: string;
+    razorpay_order_id?: string;
+    razorpay_signature?: string; 
 }

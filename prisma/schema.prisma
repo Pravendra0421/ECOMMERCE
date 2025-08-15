@@ -122,6 +122,8 @@ model Order {
   total           Float
   status          String // e.g., "PENDING", "SHIPPED", "DELIVERED"
   paymentMethod   String
+  paymentId       String?
+  razorpayOrderId String?
   shippingAddress Json
   contactInfo     Json
   createdAt       DateTime    @default(now())

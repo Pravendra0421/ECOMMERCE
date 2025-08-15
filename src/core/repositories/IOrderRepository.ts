@@ -6,7 +6,7 @@ import {
 } from "../entities/order.entity";
 import { CartEntity, CartItemEntity } from "../entities/cart.entity";
 import { ProductVariationEntity } from "../entities/product.entity";
-import { UpdateOrderDto } from "../dtos/Order.dto";
+import { BuyNowDto, UpdateOrderDto } from "../dtos/Order.dto";
 import prisma from "@/lib/prisma";
 type PaymentMethodType = "Stripe" | "COD" | "UPI";
 export interface IOrderRepository {
@@ -19,17 +19,7 @@ export interface IOrderRepository {
     data: UpdateOrderDto
   ): Promise<orderEntity | null>;
   deleteOrder(orderId: string): Promise<boolean>;
-  createOrderFromProduct(
-    userId: string,
-    productVariationId: string,
-    quantity: number,
-    price: number, // Add price here, as it's not coming from cart item
-    orderDetails: {
-      paymentMethod?: PaymentMethodType;
-      shippingAddress?: AddressEntity;
-      contactInfo?: ContactInfoEntity;
-    }
-  ): Promise<orderEntity>;
+  createOrderFromProduct(payload: BuyNowDto): Promise<orderEntity>;
   findAllOrders(): Promise<orderEntity[]>;
 }
 export class OrderRepository implements IOrderRepository {
@@ -81,13 +71,17 @@ export class OrderRepository implements IOrderRepository {
     cartData: CartEntity,
     orderDetails: any
   ): Promise<orderEntity> {
+    const orderStatus =
+      orderDetails.PaymentMethodType === "COD" ? "PENDING" : "CONFIRMED";
     const order = await prisma.order.create({
       data: {
         userId: cartData.userId!,
-        status: "PENDING",
+        status: orderStatus,
         total: cartData.totalAmount,
         paymentMethod: orderDetails.paymentMethod,
         shippingAddress: orderDetails.shippingAddress,
+        paymentId: orderDetails.razorpay_payment_id,
+        razorpayOrderId: orderDetails.razorpay_order_id,
         contactInfo: orderDetails.contactInfo,
         orderItems: {
           create: cartData.items.map((item: CartItemEntity) => ({
@@ -220,28 +214,26 @@ export class OrderRepository implements IOrderRepository {
       return false;
     }
   }
-  async createOrderFromProduct(
-    userId: string,
-    productVariationId: string,
-    quantity: number,
-    price: number,
-    orderDetails: any
-  ): Promise<orderEntity> {
-    const totalAmount = quantity * price; // Calculate total for this single item
+  async createOrderFromProduct(payload: BuyNowDto): Promise<orderEntity> {
+    const totalAmount = payload.quantity * payload.price; // Calculate total for this single item
+    const orderStatus =
+      payload.paymentMethod === "COD" ? "PENDING" : "CONFIRMED";
 
     const order = await prisma.order.create({
       data: {
-        userId: userId,
-        status: "PENDING", // Initial status
+        userId: payload.userId,
+        status: orderStatus, // Initial status
         total: totalAmount,
-        paymentMethod: orderDetails.paymentMethod,
-        shippingAddress: orderDetails.shippingAddress,
-        contactInfo: orderDetails.contactInfo,
+        paymentMethod: payload.paymentMethod,
+        shippingAddress: payload.shippingAddress,
+        paymentId: payload.razorpay_payment_id,
+        razorpayOrderId: payload.razorpay_order_id,
+        contactInfo: payload.contactInfo,
         orderItems: {
           create: {
-            productVariationId: productVariationId,
-            quantity: quantity,
-            price: price, // Store the price at the time of order
+            productVariationId: payload.productVariationId,
+            quantity: payload.quantity,
+            price: payload.price, // Store the price at the time of order
           },
         },
       },

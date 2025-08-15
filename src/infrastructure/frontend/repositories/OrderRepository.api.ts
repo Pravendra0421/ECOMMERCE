@@ -136,27 +136,7 @@ export class OrderApiRepository implements IOrderRepository {
     return parseOrderEntity(data.order);
   }
 
-  async createOrderFromProduct(
-    productVariationId: string,
-    userId: string, // This userId needs to be included in the body
-    quantity: number,
-    price: number,
-    orderDetails: {
-      paymentMethod: PaymentMethodType;
-      shippingAddress: AddressEntity;
-      contactInfo: ContactInfoEntity;
-    }
-  ): Promise<orderEntity> {
-    const payload: BuyNowDto = {
-      productVariationId: productVariationId,
-      quantity: quantity,
-      shippingAddress: orderDetails.shippingAddress,
-      contactInfo: orderDetails.contactInfo,
-      paymentMethod: orderDetails.paymentMethod,
-      userId: userId, // Now correctly assigned
-      price: price,
-    };
-
+  async createOrderFromProduct(payload: BuyNowDto): Promise<orderEntity> {
     const response = await fetch("/api/orders/buy-now", {
       method: "POST",
       headers: getCommonHeaders(),
@@ -261,5 +241,19 @@ export class OrderApiRepository implements IOrderRepository {
 
     const data = await response.json();
     return data.orders.map((order: any) => parseOrderEntity(order));
+  }
+  async createRazorpayOrder(amount: number): Promise<any> {
+    const response = await fetch("/api/payment/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to create Razorpay order.");
+    }
+
+    return response.json();
   }
 }
