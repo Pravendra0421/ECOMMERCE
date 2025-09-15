@@ -18,7 +18,8 @@ export default async function AdminProductListPage() {
   }
 
   return (
-    <div className="container w-full p-6 bg-white shadow-md rounded-lg ">
+    <ScrollArea className="h-[90vh] ">
+      <div className="container w-full p-4  bg-white shadow-md rounded-lg ">
       <h1 className="text-3xl font-bold mb-6 text-gray-800">
         Product Management
       </h1>
@@ -49,5 +50,6 @@ export default async function AdminProductListPage() {
         </div>
       )}
     </div>
+    </ScrollArea>
   );
 }

@@ -71,11 +71,12 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ orderId: string }> }
+) {
   try {
-    const url = new URL(req.url);
-    const orderId = url.searchParams.get("orderId");
-
+    const { orderId } = await params;
     if (!orderId) {
       return NextResponse.json(
         { message: "Order ID is required." },

@@ -5,7 +5,7 @@ import type { CreateCategoryDTO } from "@/core/dtos/CreateCategory.dto";
 import { CategoryApiRepository } from "@/infrastructure/frontend/repositories/CategoryRepository.api";
 import { ImageApiRepository } from "@/infrastructure/frontend/repositories/ImageRepository.api";
 import { CreateCategoryUseCase } from "@/core/usecases/CreateCategory.usecase";
-
+import { ScrollArea } from "@/components/ui/scroll-area";
 export default function CreateCategoryForm() {
   const [categoryName, setCategoryName] = useState<string>("");
   const [seoTitle, setSeoTitle] = useState<string>("");
@@ -106,7 +106,8 @@ export default function CreateCategoryForm() {
 
   // ... (rest of the form JSX remains exactly the same)
   return (
-    <div className="w-full">
+    <ScrollArea className="h-[70vh]">
+      <div className="w-full">
       <form
         onSubmit={handleSubmitCategory}
         className="space-y-6 p-6 bg-white shadow-lg rounded-lg max-w-xl mx-auto my-8"
@@ -283,5 +284,6 @@ export default function CreateCategoryForm() {
         </button>
       </form>
     </div>
+    </ScrollArea>
   );
 }

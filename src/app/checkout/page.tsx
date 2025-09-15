@@ -247,7 +247,7 @@ function CheckoutPageContent() {
   const handlePlaceOrder = async () => {
     setError(null);
 
-    // === Validation (Ise jaisa hai waisa hi rehne dein) ===
+    // === Validation ===
     if (!currentUser) {
       router.push("/login/request-otp");
       return;
@@ -269,13 +269,8 @@ function CheckoutPageContent() {
     }
     // === Validation End ===
 
-    setProcessing(true); // Button ko disable karne ke liye processing shuru
+    setProcessing(true); 
 
-    // ==========================================================
-    // === PAYMENT METHOD KE HISAB SE LOGIC ===
-    // ==========================================================
-
-    // ---> AGAR PAYMENT METHOD 'COD' HAI
     if (selectedPaymentMethod === "COD") {
       try {
         let finalOrderId: string;
@@ -309,15 +304,14 @@ function CheckoutPageContent() {
         } else {
           throw new Error("Cannot determine order source.");
         }
-        router.push(`/order-confirmation?orderId=${finalOrderId}`);
+        router.push(`/order-confirmation/${finalOrderId}`);
       } catch (err: any) {
         setError(err.message || "Failed to place order.");
         setProcessing(false);
       }
-      return; // COD ka process yahan khatam.
+      return; 
     }
 
-    // ---> AGAR PAYMENT METHOD 'UPI' HAI
     if (selectedPaymentMethod === "UPI") {
       try {
         // 1. Backend se Razorpay ka Order ID banwayein
@@ -331,7 +325,7 @@ function CheckoutPageContent() {
           key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
           amount: razorpayOrder.amount,
           currency: "INR",
-          name: "Your Store Name", // Aapke store ka naam
+          name: "STITCHXSTATE", // Aapke store ka naam
           description: "Order Payment",
           order_id: razorpayOrder.id,
 
@@ -385,7 +379,7 @@ function CheckoutPageContent() {
               } else {
                 throw new Error("Cannot determine order source.");
               }
-              router.push(`/order-confirmation?orderId=${finalOrderId}`);
+              router.push(`/order-confirmation/${finalOrderId}`);
             } catch (err: any) {
               setError(err.message || "Order creation failed after payment.");
               setProcessing(false);
@@ -681,7 +675,6 @@ function CheckoutPageContent() {
         </Button>
       </div>
 
-      {/* Right Section: Order Summary (jaisa aapne pehle likha hai) */}
       <div className="w-full lg:w-2/5 p-8 bg-gray-100 flex flex-col justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">

@@ -153,7 +153,7 @@ export class OrderApiRepository implements IOrderRepository {
   }
 
   async findById(orderId: string): Promise<orderEntity | null> {
-    const response = await fetch(`/api/orders/single?orderId=${orderId}`, {
+    const response = await fetch(`/api/orders/${orderId}`, {
       method: "GET",
       headers: getCommonHeaders(),
       credentials: "include",
