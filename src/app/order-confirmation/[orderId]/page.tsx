@@ -60,7 +60,7 @@ function Orderconfirmation() {
           <div className=" text-center mt-10">
             <Button
               onClick={() => {
-                router.push("http://localhost:3000/profile/orders");
+                router.push("/profile/orders");
               }}
             >
               View Your All Order
